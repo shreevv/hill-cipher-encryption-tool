@@ -1,70 +1,35 @@
 import streamlit as st
 import random
+import re
 
 # -----------------------------------------------------------
-# Hill Cipher Encryption Tool (2x2 Matrix Version)
-# Designed for Educational Demonstration
+# Hill Cipher Encryption Tool (2x2 Matrix, Classic A–Z)
+# Professional and Error-Resilient Version
 # -----------------------------------------------------------
 
-# --- Configuration ---
-st.set_page_config(
-    page_title="Hill Cipher Encryption Tool",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ---------- Streamlit Setup ----------
+st.set_page_config(page_title="Hill Cipher Encryption Tool", layout="wide")
 
-# --- Custom CSS for a clean, professional look ---
+# ---------- Custom Styling ----------
 st.markdown("""
     <style>
-        body {
-            background-color: #0e1117;
-            color: #f5f5f5;
-        }
-        .stApp {
-            background-color: #0e1117;
-        }
-        h1, h2, h3, h4 {
-            color: #ffffff !important;
-            font-weight: 700;
-        }
+        .stApp {background-color: #0e1117;}
+        h1, h2, h3, h4 {color: #ffffff; font-weight: 700;}
         .stTextArea textarea {
-            background-color: #1e2229;
-            color: white;
-            border-radius: 10px;
-            border: 1px solid #30343a;
-            font-size: 16px;
+            background-color: #1e2229; color: white;
+            border-radius: 10px; border: 1px solid #30343a; font-size: 16px;
         }
         .stButton>button {
-            background-color: #2563eb;
-            color: white;
-            border-radius: 10px;
-            border: none;
-            font-weight: 600;
-            transition: 0.3s;
+            background-color: #2563eb; color: white; border-radius: 8px;
+            border: none; font-weight: 600; transition: 0.3s;
         }
-        .stButton>button:hover {
-            background-color: #1d4ed8;
-            color: #e5e5e5;
-        }
-        .css-1d391kg, .css-18e3th9 {
-            background-color: #111418 !important;
-        }
-        table {
-            background-color: #1b1f25;
-            color: #f5f5f5;
-            border-radius: 8px;
-        }
-        .footer {
-            text-align: center;
-            color: #a3a3a3;
-            font-size: 14px;
-            margin-top: 50px;
-        }
+        .stButton>button:hover {background-color: #1d4ed8;}
+        .footer {text-align:center; color:#a3a3a3; margin-top:40px;}
     </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------
-# Mapping and Constants
+# Hill Cipher Core Logic (mod 26, A–Z only)
 # -----------------------------------------------------------
 
 letter_to_num = {chr(i + 65): i for i in range(26)}
@@ -75,21 +40,17 @@ mod_inverse = {
     15: 7, 17: 23, 19: 11, 21: 5, 23: 17, 25: 25
 }
 
-# -----------------------------------------------------------
-# Utility Functions
-# -----------------------------------------------------------
 
 def find_inverse(a):
     """Find modular inverse of determinant (mod 26)."""
     a = a % 26
     if a in mod_inverse:
         return mod_inverse[a]
-    else:
-        raise ValueError(f"No modular inverse exists for determinant {a} (mod 26).")
+    raise ValueError(f"No modular inverse for determinant {a} mod 26.")
 
 
 def inverse_matrix_mod26(K):
-    """Compute inverse of 2x2 key matrix (mod 26)."""
+    """Compute inverse of 2x2 key matrix under mod 26."""
     a, b = K[0][0], K[0][1]
     c, d = K[1][0], K[1][1]
     det = (a * d - b * c) % 26
@@ -99,13 +60,23 @@ def inverse_matrix_mod26(K):
     return K_inv
 
 
+def clean_text(text):
+    """
+    Converts input text to uppercase and removes non-alphabet characters.
+    Returns cleaned text and a flag if any cleaning occurred.
+    """
+    cleaned = re.sub(r'[^A-Za-z]', '', text).upper()
+    cleaned_flag = cleaned != text.upper()
+    return cleaned, cleaned_flag
+
+
 def text_to_numbers(text):
-    """Convert text to numeric list (A-Z only)."""
-    return [letter_to_num[ch] for ch in text.upper() if ch.isalpha()]
+    """Convert text (A–Z) to numeric list (0–25)."""
+    return [letter_to_num[ch] for ch in text]
 
 
 def numbers_to_text(nums):
-    """Convert numeric list back to text."""
+    """Convert numeric list (0–25) to uppercase letters."""
     return ''.join(num_to_letter[n % 26] for n in nums)
 
 
@@ -126,23 +97,25 @@ def decrypt_block(block, K_inv):
 
 
 def encrypt_text(plaintext, K):
-    """Encrypt full text using Hill Cipher."""
-    plaintext = plaintext.upper().replace(" ", "")
+    """Encrypt full cleaned text, adding padding if odd length."""
+    plaintext, was_cleaned = clean_text(plaintext)
+    if not plaintext:
+        raise ValueError("Text must contain at least one alphabetic character.")
     if len(plaintext) % 2 != 0:
         plaintext += "X"
-    ciphertext = ""
-    for i in range(0, len(plaintext), 2):
-        ciphertext += encrypt_block(plaintext[i:i+2], K)
-    return ciphertext
+    ciphertext = "".join(encrypt_block(plaintext[i:i+2], K)
+                         for i in range(0, len(plaintext), 2))
+    return ciphertext, was_cleaned
 
 
 def decrypt_text(ciphertext, K_inv):
-    """Decrypt full text."""
-    ciphertext = ciphertext.upper().replace(" ", "")
-    plaintext = ""
-    for i in range(0, len(ciphertext), 2):
-        plaintext += decrypt_block(ciphertext[i:i+2], K_inv)
-    return plaintext
+    """Decrypt full cleaned text."""
+    ciphertext, was_cleaned = clean_text(ciphertext)
+    if not ciphertext:
+        raise ValueError("Ciphertext must contain at least one alphabetic character.")
+    plaintext = "".join(decrypt_block(ciphertext[i:i+2], K_inv)
+                        for i in range(0, len(ciphertext), 2))
+    return plaintext, was_cleaned
 
 
 def generate_random_key():
@@ -157,28 +130,29 @@ def generate_random_key():
             continue
 
 # -----------------------------------------------------------
-# Streamlit Layout
+# Streamlit UI
 # -----------------------------------------------------------
 
 st.title("Matrix Encryption & Translation Tool")
-st.markdown("### Hill Cipher Implementation using Invertible Matrices and Modular Arithmetic")
+st.markdown("### Hill Cipher – Using Invertible Matrices and Modular Arithmetic")
 
 st.write("""
-This web-based demonstration applies **Linear Algebra concepts**—specifically matrix multiplication,
-determinants, and modular arithmetic—to implement the **Hill Cipher**, an early form of polygraphic substitution cipher.
+This demonstration implements the **Hill Cipher**, a classical encryption technique
+that applies concepts from *Linear Algebra*—including matrix multiplication, determinants, 
+and inverses—to achieve secure text encoding.
 """)
 
 st.divider()
 
-# Sidebar – Key Matrix
+# Sidebar: Key matrix input
 st.sidebar.header("Encryption Key Configuration")
-key_mode = st.sidebar.radio("Select Key Option", ["Generate Random Key", "Enter Manually"])
+key_option = st.sidebar.radio("Select Key Option", ["Generate Random Key", "Enter Manually"])
 
-if key_mode == "Generate Random Key":
+if key_option == "Generate Random Key":
     key_matrix = generate_random_key()
     st.sidebar.success("Random invertible key generated successfully.")
 else:
-    st.sidebar.info("Enter integers between 0 and 25:")
+    st.sidebar.info("Enter integer values (0–25):")
     a = st.sidebar.number_input("K[0][0]", 0, 25, 3)
     b = st.sidebar.number_input("K[0][1]", 0, 25, 3)
     c = st.sidebar.number_input("K[1][0]", 0, 25, 2)
@@ -188,7 +162,7 @@ else:
 st.sidebar.write("### Current Key Matrix")
 st.sidebar.table(key_matrix)
 
-# Validate invertibility
+# Validate key
 try:
     key_inverse = inverse_matrix_mod26(key_matrix)
     valid_key = True
@@ -208,11 +182,16 @@ with col1:
         if not valid_key:
             st.error("Please enter a valid invertible key matrix.")
         elif not plaintext.strip():
-            st.warning("Please enter text for encryption.")
+            st.warning("Please enter text to encrypt.")
         else:
-            ciphertext = encrypt_text(plaintext, key_matrix)
-            st.success("Ciphertext:")
-            st.code(ciphertext, language="text")
+            try:
+                ciphertext, cleaned = encrypt_text(plaintext, key_matrix)
+                if cleaned:
+                    st.info("Note: Non-alphabet characters were removed automatically before encryption.")
+                st.success("Ciphertext:")
+                st.code(ciphertext, language="text")
+            except Exception as e:
+                st.error(str(e))
 
 with col2:
     st.subheader("Decrypt")
@@ -221,11 +200,16 @@ with col2:
         if not valid_key:
             st.error("Please enter a valid invertible key matrix.")
         elif not ciphertext_input.strip():
-            st.warning("Please enter text for decryption.")
+            st.warning("Please enter text to decrypt.")
         else:
-            decrypted = decrypt_text(ciphertext_input, key_inverse)
-            st.success("Decrypted Text:")
-            st.code(decrypted, language="text")
+            try:
+                decrypted, cleaned = decrypt_text(ciphertext_input, key_inverse)
+                if cleaned:
+                    st.info("Note: Non-alphabet characters were removed automatically before decryption.")
+                st.success("Decrypted Text:")
+                st.code(decrypted, language="text")
+            except Exception as e:
+                st.error(str(e))
 
 st.divider()
 st.markdown("<p class='footer'>Developed by Group 11 – B.Tech CSE, BML Munjal University (2025)</p>", unsafe_allow_html=True)
